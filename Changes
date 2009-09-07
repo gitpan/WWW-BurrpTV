@@ -1,0 +1,6 @@
+Revision history for Perl extension WWW::BurrpTV.
+
+0.01  Wed Sep  2 22:54:47 2009
+	- original version; created by h2xs 1.23 with options
+		-AXc -n WWW::BurrpTV --skip-exporter
+

@@ -1,0 +1,7 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/WWW-BurrpTV.t
+lib/WWW/BurrpTV.pm
+META.yml                                 Module meta-data (added by MakeMaker)
