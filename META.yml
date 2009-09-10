@@ -1,17 +1,18 @@
 --- #YAML:1.0
 name:                WWW-BurrpTV
-version:             0.01
+version:             0.02
 abstract:            Parse tv.burrp.com for TV listings.
-license:             ~
+license:             perl
 author:              
     - rarbox <rarbox@cpan.org>
 generated_by:        ExtUtils::MakeMaker version 6.42
 distribution_type:   module
 requires:     
+    Carp:                          0
     DateTime:                      0
     HTML::TreeBuilder:             0
     LWP::UserAgent:                0
-    Time::Normalize:               0
+    Test::More:                    0
 meta-spec:
     url:     http://module-build.sourceforge.net/META-spec-v1.3.html
     version: 1.3

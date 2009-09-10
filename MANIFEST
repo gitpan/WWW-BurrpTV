@@ -2,6 +2,10 @@ Changes
 Makefile.PL
 MANIFEST
 README
-t/WWW-BurrpTV.t
+LICENSE
+t/off_channel_list_cache.t
+t/on_channel_list_online.t
+t/on_show_list_parse.t
+t/files/cache
 lib/WWW/BurrpTV.pm
 META.yml                                 Module meta-data (added by MakeMaker)
