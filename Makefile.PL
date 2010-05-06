@@ -13,6 +13,8 @@ WriteMakefile(
 				'HTML::TreeBuilder'	=> 0,
 				'Test::More'		=> 0,
 				'Carp'			=> 0,
+				'File::Path'		=> 0,				
+				'Path::Abstract'	=> 0,	
     			 },
     test	      => {TESTS => $tests},
     

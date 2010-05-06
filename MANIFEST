@@ -8,4 +8,4 @@ t/on_channel_list_online.t
 t/on_show_list_parse.t
 t/files/cache
 lib/WWW/BurrpTV.pm
-META.yml                                 Module meta-data (added by MakeMaker)
+sample/test.pl

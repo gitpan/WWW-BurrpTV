@@ -26,23 +26,26 @@ WWW::BurrpTV - Parse tv.burrp.com for TV listings.
 
 =head2 Overview
 
-	WWW::BurrpTV is an object oriented interface to parse TV listings from tv.burrp.com.
+WWW::BurrpTV is an object oriented interface to parse TV listings from tv.burrp.com.
+
 =cut
 
 package WWW::BurrpTV;
 
-
+use File::Path qw(make_path);
+use Path::Abstract qw(--no_0_093_warning);
 use HTML::TreeBuilder;
 use DateTime;
 use LWP::UserAgent;
 use Carp;
+use Data::Dumper;
 
 use strict;
 use warnings;
 
 our @ISA = qw();
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use vars qw ( 
 	      %CHANNELS 
@@ -53,6 +56,7 @@ use vars qw (
 BEGIN {
 	      our %CHANNELS;
 	      our $UA = LWP::UserAgent->new();
+	      $UA->env_proxy;
 	      our $TIMEZONE = 'Asia/Kolkata'; # Default timezone
        }
 
@@ -74,10 +78,12 @@ sub new {
 		my $cache = 0;
 		my $self = bless({}, $class);
 		my $write = 0;
-		if ((exists $args{cache}) && (!-d $args{cache})) { carp 'Directory does not exist. Channel list will not be cached.'; }
+#		if ((exists $args{cache}) && (!-d $args{cache})) { carp 'Directory does not exist. Channel list will not be cached.'; }
+		if ((exists $args{cache}) && (!-d $args{cache})) { make_path($args{cache}); $write = 1; }
 		else { $write = 1; }
 
-		$cache = $args{cache}.'/cache' if exists $args{cache};
+		#$cache = $args{cache}.'/cache' if exists $args{cache};
+		$cache = Path::Abstract->new($args{cache})->child('cache')->stringify if exists $args{cache};
 		delete $args{cache}; # No longed needed.
 
 	        for my $key (keys %args) { carp "Ignored invalid argument ($key)"; }
@@ -105,22 +111,36 @@ sub new {
 						close $cachefile;
 					    }
 			    }
+##
+ 
+ 
+		my $tree = HTML::TreeBuilder->new_from_content($html);
+#		my $parsed = $tree->parse($html);
+#		$tree->eof;
 
-		my $tree = HTML::TreeBuilder->new();
-		my $parsed = $tree->parse($html);
-		$tree->eof;
+#		my $channel_array = $parsed->{'_content'}[1]{'_content'}[2]{'_content'}[0]{'_content'}[1]{'_content'}[1]{'_content'}[1]{'_content'}[1]{'_content'};
 
-		my $channel_array = $parsed->{'_content'}[1]{'_content'}[2]{'_content'}[0]{'_content'}[1]{'_content'}[1]{'_content'}[1]{'_content'}[1]{'_content'};
 
-		for (@$channel_array) { 
-					my $channel_name = $_->{_content}[0]->{_content}[0];
-					my $link = $_->{_content}[0]->{href};
-					$channel_name =~ s/^\s*(.*?)\s*$/$1/;
-					$CHANNELS{$channel_name} = 'http://tv.burrp.com'.$link;
-				      }
+#		for (@$channel_array) { 
+#					my $channel_name = $_->{_content}[0]->{_content}[0];
+#					my $link = $_->{_content}[0]->{href};
+#					$channel_name =~ s/^\s*(.*?)\s*$/$1/;
+#					$CHANNELS{$channel_name} = 'http://tv.burrp.com'.$link;
+#				      } print Dumper \%CHANNELS;
 
-		$tree = $tree->delete();
-		$parsed = $parsed->delete();
+#		$tree = $tree->delete();
+#		$parsed = $parsed->delete();
+for (@{$tree->extract_links('a', 'href')})
+ {
+   my($link, $el, $attr, $tag) = @$_;
+  next unless $link =~ /\/channel\/[a-z\-]+\/\d+\//;
+  my $channel_name = $el->as_text;
+  $channel_name =~ s/^\s*(.*?)\s*$/$1/;
+  next unless $channel_name;
+  next if $channel_name eq 'New';
+  $CHANNELS{$channel_name} = 'http://tv.burrp.com'.$link;
+ }
+$tree->delete;
 		return $self;
         }
 
@@ -207,34 +227,49 @@ sub get_shows {
          croak $http->status_line unless $http->is_success;
          my $html = $http->decoded_content;
 
-         my $tree = HTML::TreeBuilder->new();
-	 my $parsed = $tree->parse($html);
-	 $tree->eof;
+         my $tree = HTML::TreeBuilder->new_from_content($html);
+#	 my $parsed = $tree->parse($html);
+#	 $tree->eof;
 
          my $today = 1;
          my @listing_today = qw();
          my @listing_tomorrow = qw();
          my @listing = qw();
-
-         for (@{$parsed->{'_content'}[1]{'_content'}[2]{'_content'}[0]{'_content'}[0]{'_content'}[3]{'_content'}[1]{'_content'}[1]{'_content'}}) {          
-         		############# Parsed values (with the help of Data::Dumper) ##############
-         		my $time = $_->{_content}[0]{_content}[0]{_content}[0];
-         		my $am_or_pm = $_->{_content}[0]{_content}[0]{_content}[1]{_content}[0];
-         		my $show_link = $_->{_content}[1]{_content}[0]{href};
-         		my $episode = $_->{_content}[1]{_content}[0]{title};
-         		undef $episode if !$episode;
-         		my $full_link;
-         		$full_link = 'http://tv.burrp.com'.$show_link if $show_link;
-         		my $show = $_->{_content}[2]{_content}[0]{_content}[1]{_content}[0];
-         		$time =~ s/^ (.+)/$1/;
-
-	 		if (!$show) { $today = 0; }
-	 		else {
-	 				 $show =~ s/(.*?)\s+$/$1/;
-	 				 my $season;
-         				 ($show,$season) = $show =~ /(.*?) \(Season (\d+)\)/ if $show =~ /Season \d+/;
-
-	 			 	 ################## TIME CONVERSION ###############################
+         
+         my @elements = $tree->look_down('_tag','td',sub { $_[0]->{class} =~ /resultTime/ if $_[0]->{class}});
+         for my $element (@elements) {
+         $element = $element->parent;
+         push @listing, {
+         		  _channel 		=> 	$input_channel,
+         		  _original_time	=>	eval { 
+         		  					my ($time) = $element->look_down('_tag','b','class','from')->as_text =~ /((?:\d{1,2}:?){2})/; 
+         		  					return $time;
+         		  				     },
+         		  _am_or_pm		=>	$element->look_down('_tag','sup','class','ap')->as_text,
+         		  _show_link		=>	'http://tv.burrp.com'.$element->look_down('_tag','a')->{href},
+         		  _show			=>	eval { my ($show) = $element->look_down('_tag','strong')->as_text =~ /(.*?) $/; return $show; },
+         		  _episode		=>	eval { 
+         		  					my $full_title = $element->look_down('_tag','a','class','title')->as_text;
+         		  					my $title = quotemeta($element->look_down('_tag','strong')->as_text);
+         		  					$full_title =~ s/\s+$title\s+:\s+//;
+         		  					$full_title =~ s/\s+$//;
+         		  					return $full_title;
+         		  				     },
+         		  _image		=>	'http://tv.burrp.com'.$element->look_down('_tag','img')->{src},
+         		};
+         $element->delete;
+         }
+        
+        for (@listing) {
+        my $show = $_->{_show};
+        my $time = $_->{_original_time};
+        my $am_or_pm = $_->{_am_or_pm};
+        my $show_link = $_->{_show_link};
+        my $episode = $_->{_episode};
+	undef $episode if !$episode;
+	my $season;
+        ($show,$season) = $show =~ /(.*?) \(Season (\d+)\)/ if $show =~ /Season \d+/;
+        	 			 	 ################## TIME CONVERSION ###############################
 	 			 	 my ($hour,$minutes) = $time =~ /(\d+):(\d+)/;
 	 			 	 #my $nt = normalize_hms($hour,$minutes,0,$am_or_pm);
 
@@ -270,12 +305,10 @@ sub get_shows {
 
 		 			 my $show_info = { 	
 		 			 			_channel	=>	$input_channel, 
-		 			 			#_time24		=>	$dt->hms =~ /(\d+:\d+)/, # Ignore seconds
 		 			 			_time24		=>	$dt->strftime('%H:%M'),
-		 			 			#_time12		=>	$human_time,
 		 			 			_time12		=>	$dt->strftime('%I:%M %p'),
 		 			 			_show		=>	$show, 
-		 			 			_link		=>	$full_link, 
+		 			 			_link		=>	$show_link, 
 		 			 			_season		=>	$season, 
 		 			 			_episode	=>	$episode,
 		 			 		 };
@@ -284,14 +317,14 @@ sub get_shows {
 		 			 else { push @listing_tomorrow,$show_info; }
 
 	 		}
-         		##########################################################################
 
-         	      }
-         undef $tree;
-         undef $parsed;
-         #$tree = $tree->delete;
-         @listing = (@listing_today,@listing_tomorrow);
-         return \@listing;
+        
+        	      
+$tree->delete;         
+@listing = (@listing_today,@listing_tomorrow);
+return \@listing;
+exit;
+
 }
 
 1;
